@@ -1,5 +1,6 @@
 import google.generativeai as palm
 from google.cloud import vision
+import json
 
 
 def detect_text(content) -> list:
@@ -82,3 +83,63 @@ def instruct_agent(text:str, instruction:str=None, nb_words:int=500) -> str:
         response = "No instruction given..."
 
     return(response)
+
+
+def get_entities(text:str, vocabulary:str) -> str:
+    """
+    Use PaLM for extracting entities from a text
+    :param text: context
+    :param vocabulary: controlled vocabulary as csv string
+    :return: return entities as csv string
+    """
+
+    models = [m for m in palm.list_models() if 'generateText' in m.supported_generation_methods]
+    model = models[0].name
+
+    # split text into sentences the easy way
+    sentences = text.split('.')
+
+    # place holder for extracted entities
+    extracted_entities = dict()
+
+    # do the extraction of entities for each sentence
+    for sentence in sentences:
+
+        prompt = f"""
+        Instructions to perform the following tasks:
+        1- To determine if a word in the context is an extracted entity, find the very similar entity by meaning in the vocabulary.
+        2- Keep extracted entities as short as possible.
+        3- For each extracted entity, use the meaning of the words to determine the closest word in the vocabulary.
+
+        Following the previous instructions, perform the following task:
+        A- Extract entity, its corresponding category from the context given below and the reference of the entity in the vocabulary.
+        B- Format the output as a json using 'entity' as the key and with 'category' and 'reference' as values.
+        C- Let's think step by step.
+        ##
+        context: {sentence}
+        vocabulary: {vocabulary}
+        \n\n
+        """
+
+        if len(vocabulary) > 0 and len(sentence) > 0:
+            
+            completion = palm.generate_text(
+                model=model,
+                prompt=prompt,
+                temperature=0,
+                max_output_tokens=800,
+            )
+
+            response = completion.result
+            response = response.replace('```json\n', '').replace('```', '')
+            response = json.loads(response)
+
+            # check the type of the value of the key 'entity'
+            first_key = list(response.keys())[0]
+            if isinstance(response[first_key], dict):
+                extracted_entities.update(response)
+
+    if len(extracted_entities) == 0:
+        extracted_entities = "Nothing extracted ..."
+
+    return(extracted_entities)
