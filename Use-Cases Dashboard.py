@@ -42,9 +42,5 @@ st.write("""
 st.header('Use-Cases')
 
 st.markdown("""
-   - OCRed Images Text Curation
-   - Data Curation
-   - Knowledge Extraction
-   - Anomaly Detection
-   - Statistical Analysis
+   - 
 """)
