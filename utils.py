@@ -1,5 +1,9 @@
+from pinecone_text.sparse import BM25Encoder
+import pinecone
+
 import google.generativeai as palm
 from google.cloud import vision
+
 import json
 
 
@@ -143,3 +147,116 @@ def get_entities(text:str, vocabulary:str) -> str:
         extracted_entities = "Nothing extracted ..."
 
     return(extracted_entities)
+
+
+def list_embedding_palm_models():
+    """
+    List the available embeddings models
+    :return: the list of embeddings models
+    """
+    embedding_models = [m.name for m in palm.list_models() if 'embedText' in m.supported_generation_methods]
+    embedding_dimenions = {m: len(palm.generate_embeddings(model=m, text='dimension')['embedding']) for m in embedding_models}
+    return embedding_models, embedding_dimenions
+
+
+def init_sparse_encoder(glossary_df, column_label):
+    """
+    Initialize the sparse encoder
+    :param glossary_df: the glossary dataframe
+    :param column_label: the column label
+    :return: the sparse encoder
+    """
+    # create the bm25 encoder
+    bm25 = BM25Encoder()
+    bm25.fit(glossary_df[column_label])
+    return bm25
+
+
+def create_and_fill_glossary(
+        glossary_df, embedding_model, dimension, bm25_encoder,
+        term_label, short_label, definition_label, keywords_label,
+        batch_size=64
+):
+    """
+    Upsert the glossary in the index
+    :param glossary_df: the glossary dataframe
+    :param embedding_model: the embedding model name
+    :param dimension: the embedding dimension
+    :param bm25_encoder: the bm25 encoder
+    :param term_label: the term label
+    :param short_label: the short label
+    :param definition_label: the definition label
+    :param keywords_label: the keywords label
+    :param batch_size: the batch size
+    :return: message as string
+    """
+
+    # create the pinecone index
+    index = pinecone.create_index(
+        "hybrid-slb-glossary",
+        dimension = dimension,
+        metric = "dotproduct",
+        pod_type = "s1"
+    )
+
+    # get the pinecone index
+    index = pinecone.Index("hybrid-slb-glossary")
+
+    # overwrite the keywords if needed
+    for i, row in glossary_df.iterrows():
+        keywords = row['keywords']
+        keywords = keywords.replace("'", '')
+        if ',' in keywords:
+            keywords = keywords.split(',')
+            keywords = [k.lstrip().rstrip() for k in keywords]
+            keywords[0] = keywords[0][1:]
+            keywords[-1] = keywords[-1][:-1]
+        else:
+            keywords = [keywords]
+        glossary_df.at[i, 'keywords'] = keywords
+
+    # create the sparse and dense embeddings and upsert them in the index
+    for i in range(0, len(glossary_df), batch_size):
+        
+        # create the current batch
+        i_end = min(i+batch_size, len(glossary_df))
+        current_batch = glossary_df[i:i_end]
+
+        # create dense vectors
+        dense_embeds = [palm.generate_embeddings(model=embedding_model, text=t)['embedding'] for t in current_batch[definition_label]]
+
+        # create sparse vectors
+        shorts = [s for s in current_batch[short_label]]
+        sparse_embeds = bm25_encoder.encode_documents(shorts)
+
+        # create the metadata to be indexed in addition to the vector
+        meta = [{
+            'term': x[0],
+            'text': x[1],
+            'keywords': x[2]
+        } for x in zip(
+            current_batch[term_label],
+            current_batch[definition_label],            
+            current_batch[keywords_label]
+        )]
+
+        # create the vectors ids from the dataframe index
+        ids = [f'id-{i}' for i in current_batch.index]
+
+        # placeholder for the vectors
+        vectors = []
+
+        # loop through the data and create dictionaries for upserts
+        for id, sparse, dense, metadata in zip(ids, sparse_embeds, dense_embeds, meta):
+
+            vectors.append({
+                'id': id,
+                'sparse_values': sparse,
+                'values': dense,
+                'metadata': metadata
+            })
+
+        # upsert the vectors
+        index.upsert(vectors)
+
+    return index.describe_index_stats()
