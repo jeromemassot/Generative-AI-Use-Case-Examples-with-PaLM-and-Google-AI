@@ -1,9 +1,6 @@
 from utils import get_entities
-
 import streamlit as st
 import pandas as pd
-import json
-
 
 #################################################################################
 # Automatic Entities Recognition and Consolidation with PaLM
