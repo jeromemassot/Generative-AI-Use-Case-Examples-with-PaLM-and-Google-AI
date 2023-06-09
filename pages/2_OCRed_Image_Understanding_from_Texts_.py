@@ -71,8 +71,8 @@ else:
 st.subheader("Analysis and Enrichment with PaLM")
 st.info("Enter the instructions that the agent will follow to get more value from the extracted text.")
 
-instructions = st.text_area("Instructions", "Summarize the text with a maximum of 500 words.")
-enrich_text_button = st.button("Enrich Text with PaLM")
+instructions = st.text_area("Instructions", "What is this figure about? Use a maximum of 100 words. In particular, describe the elements present in the figure if possible.")
+enrich_text_button = st.button("Describe Figure with PaLM")
 
 context = st.session_state.get('context', None)
 if context and len(context)>0 and enrich_text_button:
