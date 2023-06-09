@@ -63,10 +63,27 @@ if detect_text_button:
 
 blocks = st.session_state.get('blocks', None)
 if blocks and len(blocks)>0:
-    with st.expander("Texts Extracted from the Page"):
-        st.caption(blocks)
+    with st.expander("Blocks Extracted from the Page"):
+        for i, block in enumerate(blocks):
+            st.write(f'block #{i+1}')
+            st.caption(block)
 else:
     st.warning("Please upload an page first.")
 
 st.subheader("Extract Knowledge from the Texts with PaLM")
 st.info("Enter the instructions that the agent will follow to get more value from the extracted text.")
+
+instructions = st.text_area("Instructions", "Clean the text and Extract relevant information from it. In particular, reconstruct knowledge from table content.")
+extract_button = st.button("Knowledge Extraction with PaLM")
+
+context = st.session_state.get('context', None)
+
+if context and len(context)>0 and extract_button:
+
+    enriched_text = instruct_agent(context, instructions, nb_words=500)
+    if enriched_text and len(enriched_text)>0:
+        if instructions.lower().find("json")>=0:
+            st.json(enriched_text)
+        st.caption(enriched_text)
+    else:
+        st.caption("Nothing has been found Sorry")
