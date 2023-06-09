@@ -50,7 +50,7 @@ def detect_text(content) -> list:
 
 def instruct_agent(text:str, instruction:str=None, nb_words:int=500) -> str:
     """
-    Use PaLM for answering a question
+    Use PaLM for completing a specific task
     :param text: context
     :param instruction: instruction to follow
     :param nb_words: maximum number of words for summarization
@@ -159,6 +159,15 @@ def list_embedding_palm_models():
     return embedding_models, embedding_dimenions
 
 
+def list_generate_palm_models():
+    """
+    List the available generation models
+    :return: the list of generation models
+    """
+    generation_models = [m.name for m in palm.list_models() if 'generateText' in m.supported_generation_methods]
+    return generation_models
+
+
 def init_sparse_encoder(glossary_df, column_label):
     """
     Initialize the sparse encoder
@@ -190,6 +199,11 @@ def create_and_fill_glossary(
     :param batch_size: the batch size
     :return: message as string
     """
+
+    # list the pinecone indexes
+    indexes = pinecone.list_indexes()
+    if 'hybrid-slb-glossary' in indexes:
+        return "The index already exists..."
 
     # create the pinecone index
     index = pinecone.create_index(
@@ -260,3 +274,117 @@ def create_and_fill_glossary(
         index.upsert(vectors)
 
     return index.describe_index_stats()
+
+
+def search_index(
+        query:str, bm25_encoder:BM25Encoder, 
+        embedding_model:str,
+         top_k:int=3,
+         alpha:float=1.0
+):
+    """
+    Search the index
+    :param query: the query
+    :param bm25_encoder: the bm25 encoder
+    :param embedding_model: the embedding model
+    :param top_k: the number of results to return
+    :param alpha: the alpha parameter
+    :return: the list of results
+    """
+
+    def encode_query(query:str, bm25_encoder:BM25Encoder, embedding_model:str):
+        """
+        Encode the query
+        :param query: the query
+        :param bm25_encoder: the bm25 encoder
+        :param embedding_model: the embedding model
+        :return: the encoded query
+        """
+        # encode the query
+        dense = palm.generate_embeddings(model=embedding_model, text=query)['embedding']
+        sparse = bm25_encoder.encode_documents([query])[0]
+        return dense, sparse
+    
+
+    def hybrid_scale(dense, sparse, alpha:float=1.0):
+        """ 
+        Hybrid scaling of the vectors
+        :param dense: the dense vector
+        :param sparse: the sparse vector
+        :param alpha: the alpha parameter
+        :return: the scaled vectors
+        """
+        if alpha < 0 or alpha > 1:
+            raise ValueError("Alpha must be between 0 and 1")
+            
+        # scale sparse and dense vectors to create hybrid search vecs
+        sparse = {
+            'indices': sparse['indices'],
+            'values':  [v * (1 - alpha) for v in sparse['values']]
+        }
+        dense = [v * alpha for v in dense]
+        return dense, sparse
+    
+
+    # get the pinecone index
+    index = pinecone.Index("hybrid-slb-glossary")
+    
+    # encode the query into dense and sparse vectors
+    hdense, hsparse = encode_query(query, bm25_encoder, embedding_model)
+    
+    # scale the sparse and dense vectors
+    hdense, hsparse = hybrid_scale(hdense, hsparse, alpha)
+
+    # search the pinecone index
+    results = index.query(
+        top_k=top_k,
+        vector=hdense,
+        sparse_vector=hsparse,
+        include_metadata=True,
+    )
+
+    return results
+
+
+def answer(context:str, query:str, model_name:str, nb_words:int=500) -> str:
+    """
+    Use PaLM for answering a question
+    :param text: context
+    :param query: question to be answered
+    :param model_name: name of the model to be used
+    :param nb_words: maximum number of words for summarization
+    :return: return answer as string
+    """
+
+    # shorten the context if needed
+    if len(context) > 3500:
+        short_context = ' '.join(context.split()[:3500])
+    else:
+        short_context = context
+
+    if len(query) > 0 and len(short_context) > 0:
+        prompt = f"""
+        You are acting as a scientific expert in a research project. 
+        \n\n
+        Anwser the question using the information given in the following context.
+        Use a maximum of {nb_words} words.
+        If you cannot answer the question, say 'I don't know'.
+        ##
+        context: {short_context} \n
+        question: {query}
+        \n\n
+        """
+
+        completion = palm.generate_text(
+            model=model_name,
+            prompt=prompt,
+            temperature=0,
+            max_output_tokens=800,
+        )
+
+        response = completion.result
+
+    else:
+        response = "Neither instruction nor context..."
+
+    return(response)
