@@ -192,7 +192,7 @@ if answer_button and question and len(question) > 0:
         context = ' '.join([match["metadata"]["text"] for match in matches])
         st.write("Found anwser:")
         st.write(
-            answer(context, question, reader_model, nb_words=100)
+            answer(context, question, reader_model, nb_words=250)
         )
 
     with st.expander("Related terms and keywords"):
