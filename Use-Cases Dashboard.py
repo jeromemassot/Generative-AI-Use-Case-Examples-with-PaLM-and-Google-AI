@@ -39,8 +39,22 @@ st.write("""
     """
 )
 
-st.header('Use-Cases')
+st.header('Current Use-Cases')
 
 st.markdown("""
-   - 
+            - Knowledge reconstruction from challenging OCRed pages using Vertex AI and PaLM
+            - Understanding of Images from OCRed text only using Vertex AI and PaLM
+            - Automatic Named Entity Recognition and Consolidation using PaLM
+            - Automatic Creation of Answer Engine from Technical glossary using PaLM and Pinecone index
+
 """)
+
+st.header("References from Google's AI sources")
+
+column1, column2, column3 = st.columns(3)
+with column1:
+    st.video("https://www.youtube.com/watch?v=-7nf5EJ2Fsc")
+with column2:
+    st.video("https://www.youtube.com/watch?v=LWIZj_RJYjM")
+with column3:
+    st.video("https://www.youtube.com/watch?v=zizonToFXDs")
