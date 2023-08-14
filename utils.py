@@ -182,9 +182,9 @@ def init_sparse_encoder(glossary_df, column_label):
 
 
 def create_and_fill_glossary(
-        glossary_df, embedding_model, dimension, bm25_encoder,
-        term_label, short_label, definition_label, keywords_label,
-        batch_size=64
+    glossary_df, embedding_model, dimension, bm25_encoder,
+    term_label, short_label, definition_label, keywords_label,
+    batch_size=64
 ):
     """
     Upsert the glossary in the index
@@ -277,10 +277,10 @@ def create_and_fill_glossary(
 
 
 def search_index(
-        query:str, bm25_encoder:BM25Encoder, 
-        embedding_model:str,
-        top_k:int=3,
-        alpha:float=1.0
+    query:str, bm25_encoder:BM25Encoder, 
+    embedding_model:str,
+    top_k:int=3,
+    alpha:float=1.0
 ) -> list:
     """
     Search the index
