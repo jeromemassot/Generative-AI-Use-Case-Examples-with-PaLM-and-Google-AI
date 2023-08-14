@@ -281,7 +281,7 @@ def search_index(
         embedding_model:str,
         top_k:int=3,
         alpha:float=1.0
-):
+) -> list:
     """
     Search the index
     :param query: the query
