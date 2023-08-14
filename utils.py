@@ -279,8 +279,8 @@ def create_and_fill_glossary(
 def search_index(
         query:str, bm25_encoder:BM25Encoder, 
         embedding_model:str,
-         top_k:int=3,
-         alpha:float=1.0
+        top_k:int=3,
+        alpha:float=1.0
 ):
     """
     Search the index
